@@ -1,7 +1,7 @@
 /*	Name: Glenn Bersabe Email: Gbers002@ucr.edu
 	Name: Bohan Zhang Email: bzhan014@ucr.edu
 *	Lab Section: 023
-*	Assignment: Lab 07  Part 1
+*	Assignment: Lab 07  Part 2
 *	I acknowledge all content contained herein, excluding template or example
 *	code, is my own original work.
 */
@@ -10,13 +10,12 @@
 #increaselude <avr/interrupt.h>
 #increaselude "io.c"
 
-enum States{start, init, LED1, led2, led3, wait, wait2, increase, decrease, victory} state;
+enum States{start, init, led1, led2, led3, wait, wait2, increase, decrease, victory} state;
 
-volatile unsigned char TimerFlag = 0; // TimerISR() sets this to 1. C programmer should clear to 0.
+volatile unsigned char TimerFlag = 0;
 
-// Internal variables for mapping AVR's ISR to our cleaner TimerISR model.
-unsigned long timer = 1; // start count from here, down to 0. Default 1 ms.
-unsigned long timer_current = 0; // Current internal count of 1ms ticks
+unsigned long timer = 1;
+unsigned long timer_current = 0;
 unsigned char button = 0;
 unsigned char score = 0;
 unsigned char i = 0;
@@ -26,18 +25,15 @@ void TimerOn() {
 	OCR1A = 125;    // Timer interrupt will be generated when TCNT1==OCR1A
 	TIMSK1 = 0x02; // bit1: OCIE1A -- enables compare match interrupt
 
-	//initialize avr counter
 	TCNT1=0;
 
 	timer_current = timer;
-	// TimerISR will be called every timer_current milliseconds
 
-	//Enable global interrupts
-	SREG |= 0x80; // 0x80: 1000000
+	SREG |= 0x80;
 }
 
 void TimerOff() {
-	TCCR1B = 0x00; // bit3bit1bit0=000: timer off
+	TCCR1B = 0x00;
 }
 
 
@@ -45,7 +41,6 @@ void TimerISR() {
 	TimerFlag = 1;
 }
 
-// In our approach, the C programmer does not touch this ISR, but rather TimerISR()
 ISR(TIMER1_COMPA_vect) {
 	// CPU automatically calls when TCNT1 == OCR1 (every 1 ms per TimerOn settings)
 	timer_current--; // Count down to 0 rather than up to TOP
@@ -55,7 +50,6 @@ ISR(TIMER1_COMPA_vect) {
 	}
 }
 
-// Set TimerISR() to tick every M ms
 void TimerSet(unsigned long M) {
 	timer = M;
 	timer_current = timer;
@@ -70,27 +64,52 @@ void Tick(){
 			state = init;
 			break;
 		case init: 
-			state = LED1;
+			state = led1;
 			break;
-		case LED1: 
-			state = button ? decrease : led2;
+		case led1: 
+			if (button == 0x01) {
+				state = decrease;
+			}
+			else {
+				state = led2;
+			}
 			break;
 		case led2: 
-			state =  button ? increase : led3;
+			if (button == 0x01) {
+				state = increase;
+			}
+			else {
+				state = led3;
+			}
 			break;
 		case led3: 
-			state =  button ? decrease : LED1;
+			if (button == 0x01) {
+				state = decrease;
+			}
+			else {
+				state = led1;
+			}
 			break;
 		case wait:
 			if(score == 9) {
 				state = victory;
 			}
 			else {
-				state = button ? wait : wait2;
+				if (button == 0x01) {
+					state = wait;
+				}
+				else {
+					state = wait2;
+				}
 			}
 			break;
 		case wait2: 
-			state = button ? LED1 : wait2;
+			if (button == 0x01) {
+				state = led1;
+			}
+			else {
+				state = wait2;
+			}
 			break;
 		case increase: 
 			state = wait;
@@ -99,8 +118,12 @@ void Tick(){
 			 state = wait;
 			break;
 		case victory: 
-			state = i < 3 ? victory :start;// stay in victory state for 3 transitions
-			default: state = start;
+			if (i < 3) {
+				state = victory;
+			}
+			else {
+				state = start;
+			}
 		break;
 	}
 	
@@ -112,7 +135,7 @@ void Tick(){
 			PORTB = 0x00;
 			score = 5;
 			break;
-		case LED1: 
+		case led1: 
 			PORTB = 0x01;
 			break;
 		case led2: 
@@ -131,13 +154,13 @@ void Tick(){
 			break;
 		case decrease: 
 			if(score > 0) {
-				--score;
+				score--;
 			}
 			break;
 		case victory:   
 			LCD_ClearScreen();
 			LCD_DisplayString(1, msg);
-			++i;
+			i++;
 		break;
 	}
 }
@@ -145,18 +168,18 @@ void Tick(){
 int main(void)
 {
 	state = start;
+	
 	DDRA = 0x00; PORTA = 0xFF;
 	DDRB = 0xFF; PORTB = 0x00;
 	DDRB = 0xFF; PORTB = 0x00;
+	
 	TimerSet(300);
 	TimerOn();
-	
 	
 	while (1)
 	{
 		Tick();
 		while (!TimerFlag){}
 		TimerFlag = 0;
-		
 	}
 }

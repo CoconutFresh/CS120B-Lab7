@@ -15,7 +15,7 @@ unsigned char inc_button = 0;
 unsigned char dec_button = 0;
 unsigned char count = 0;
 
-volatile unsigned char TimerFlag = 0; // TimerISR() sets this to 1. C programmer should clear to 0.
+volatile unsigned char TimerFlag = 0;
 
 // Internal variables for mapping AVR's ISR to our cleaner TimerISR model.
 unsigned long timer = 1; // Start count from here, down to 0. Default 1 ms.
@@ -40,9 +40,8 @@ void TimerISR() {
 	TimerFlag = 1;
 }
 
-// In our approach, the C programmer does not touch this ISR, but rather TimerISR()
+
 ISR(TIMER1_COMPA_vect) {
-	// CPU automatically calls when TCNT1 == OCR1 (every 1 ms per TimerOn settings)
 	timer_current--; // Count down to 0 rather than up to TOP
 	if (timer_current == 0) { // results in a more efficient compare
 		TimerISR(); // Call the ISR that the user uses
@@ -71,17 +70,19 @@ void Toggle() {
 			state = wait;
 			break;
 		case wait:
-			if (inc_button && !dec_button) {
+			if (inc_button == 0x01 && dec_button == 0x00) {
 				state = s0;
-				} else if (dec_button && !inc_button) {
+			} 
+			else if (dec_button == 0x01 && inc_button == 0x00) {
 				state = s1;
-				} else if (dec_button && inc_button) {
+			} 
+			else if (dec_button == 0x01 && inc_button == 0x00) {
 				state = reset;
 			}
 			break;
 		case s0:
-			if(inc_button){
-				if(dec_button){
+			if(inc_button == 0x01){
+				if(dec_button == 0x01){
 					state = reset;
 				}
 				else{
@@ -94,8 +95,8 @@ void Toggle() {
 			}
 			break;
 		case s1:
-			if(dec_button){
-				if(inc_button){
+			if(dec_button == 0x01){
+				if(inc_button == 0x01){
 					state = reset;
 				
 				}
@@ -109,10 +110,10 @@ void Toggle() {
 			}
 			break;
 		case s0_wait:
-			if(dec_button && inc_button){
+			if(dec_button == 0x01 && inc_button == 0x01){
 				state = reset;
 			}
-			else if (dec_button || inc_button) {
+			else if (dec_button == 0x01 || inc_button == 0x01) {
 				state = s0_wait;
 			} 
 			else {
@@ -120,10 +121,10 @@ void Toggle() {
 			}
 			break;
 		case s1_wait:
-			if(dec_button && inc_button){
+			if(dec_button == 0x01 && inc_button == 0x01){
 				state = reset;
 			}
-			else if (dec_button || inc_button) {
+			else if (dec_button == 0x01 || inc_button == 0x01) {
 				state = s1_wait;
 			}
 			else {
@@ -131,7 +132,7 @@ void Toggle() {
 			}
 			break;
 		case reset:
-			if (dec_button || inc_button) {
+			if (dec_button == 0x01 || inc_button == 0x01) {
 				state = reset;
 			}
 			else {
@@ -139,7 +140,7 @@ void Toggle() {
 			}
 			break;
 	}
-	switch(state) {
+	switch(state) { //action
 		case init:
 			count = 0x00;
 			i = 0;
