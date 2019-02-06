@@ -1,23 +1,13 @@
-/*	Name: Glenn Bersabe Email: Gbers002@ucr.edu
-	Name: Bohan Zhang Email: bzhan014@ucr.edu
-*	Lab Section: 023
-*	Assignment: Lab 07  Part 1
-*	I acknowledge all content contained herein, excluding template or example
-*	code, is my own original work.
-*/
-
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include "io.c"
 
-enum states {start, init, wait, s0, s0_wait, s1, s1_wait, reset} state;
-unsigned char inc_button = 0;
-unsigned char dec_button = 0;
-unsigned char count = 0;
+enum States {Start, Init, Inc, Dec, Hold, Reset}state;
+unsigned char led = 0x00;
+unsigned char button = 0x00;
+volatile unsigned char TimerFlag = 0x00;
+unsigned char count = 0x00;
 
-volatile unsigned char TimerFlag = 0;
-
-// Internal variables for mapping AVR's ISR to our cleaner TimerISR model.
 unsigned long timer = 1; // Start count from here, down to 0. Default 1 ms.
 unsigned long timer_current = 0; // Current internal count of 1ms ticks
 
@@ -40,8 +30,9 @@ void TimerISR() {
 	TimerFlag = 1;
 }
 
-
+// In our approach, the C programmer does not touch this ISR, but rather TimerISR()
 ISR(TIMER1_COMPA_vect) {
+	// CPU automatically calls when TCNT1 == OCR1 (every 1 ms per TimerOn settings)
 	timer_current--; // Count down to 0 rather than up to TOP
 	if (timer_current == 0) { // results in a more efficient compare
 		TimerISR(); // Call the ISR that the user uses
@@ -55,138 +46,133 @@ void TimerSet(unsigned long M) {
 	timer_current = timer;
 }
 
-
-
-void Toggle() {
-	static unsigned char i = 0; //counter for holding increase or decrease
-	inc_button = (~PINA & 0x01);
-	dec_button = (~PINA & 0x02);
-	
-	switch(state) {
-		case start:
-			state = init;
+void tick(){
+	button = (~PINA & 0x03);
+	//Transitions
+	switch(state){
+		case Start:
+		{
+			state = Init;
 			break;
-		case init:
-			state = wait;
+		}
+		
+		case Init:
+		if(button == 0x01)
+		{
+			state = Inc;
 			break;
-		case wait:
-			if (inc_button == 0x01 && dec_button == 0x00) {
-				state = s0;
-			} 
-			else if (dec_button == 0x01 && inc_button == 0x00) {
-				state = s1;
-			} 
-			else if (dec_button == 0x01 && inc_button == 0x00) {
-				state = reset;
-			}
+		}
+		else if(button == 0x02)
+		{
+			state = Dec;
 			break;
-		case s0:
-			if(inc_button == 0x01){
-				if(dec_button == 0x01){
-					state = reset;
-				}
-				else{
-					state = s0;
-					++i;
-				}
-			}
-			else{
-				state = s0_wait;
-			}
+		}
+		else if(button == 0x03)
+		{
+			state = Reset;
 			break;
-		case s1:
-			if(dec_button == 0x01){
-				if(inc_button == 0x01){
-					state = reset;
-				
-				}
-				else{
-					state = s1;
-					++i;
-				}
-			}
-			else{
-				state = s1_wait;
-			}
+		}
+		else
+		{
+			state = Init;
 			break;
-		case s0_wait:
-			if(dec_button == 0x01 && inc_button == 0x01){
-				state = reset;
-			}
-			else if (dec_button == 0x01 || inc_button == 0x01) {
-				state = s0_wait;
-			} 
-			else {
-				state = wait;
-			}
+		}
+		
+		case Inc:
+		state = Hold;
+		break;
+		
+		case Dec:
+		state = Hold;
+		break;
+		
+		case Hold:
+		if((button == 0x01) || (button == 0x02))
+		{
+			state = Hold;
 			break;
-		case s1_wait:
-			if(dec_button == 0x01 && inc_button == 0x01){
-				state = reset;
-			}
-			else if (dec_button == 0x01 || inc_button == 0x01) {
-				state = s1_wait;
-			}
-			else {
-				state = wait;
-			}
+		}
+		else if(button == 0x03)
+		{
+			state = Reset;
 			break;
-		case reset:
-			if (dec_button == 0x01 || inc_button == 0x01) {
-				state = reset;
-			}
-			else {
-				state = wait;
-			}
+		}
+		else
+		{
+			state = Init;
 			break;
+		}
+		
+		case Reset:
+		if((button == 0x01) || (button == 0x02))
+		{
+			state = Reset;
+			break;
+		}
+		else
+		{
+			state = Init;
+			break;
+		}
+		
+		default:
+		break;
 	}
-	switch(state) { //action
-		case init:
-			count = 0x00;
-			i = 0;
+	switch(state){ //State actions
+		case Start:
+		count = 0x00;
+		break;
+		
+		case Init:
+		break;
+		
+		case Inc:
+		if(count < 0x09)
+		{
+			count += 0x01;
 			break;
-		case wait:
+		}
+		break;
+		
+		case Dec:
+		if(count > 0x00)
+		{
+			count -= 0x01;
+			//PORTB = led;
 			break;
-		case s0:
-			if (count < 0x09 && (i % 10 == 0 || i == 1) && i != 0)
-			count += 1;
-			break;
-		case s1:
-			if (count > 0 && (i % 10 == 0 || i == 1) && i != 0)
-			count--;
-			break;
-		case reset:
-			count = 0x00;
-			i = 0;
-			break;
-		case s0_wait:
-			i = 0;
-			break;
-		case s1_wait:
-			i = 0;
-			break;
+		}
+		break;
+		
+		case Hold:
+		break;
+		
+		case Reset:
+		count = 0x00;
+		//PORTB = led;
+		break;
+		default:
+		break;
 	}
 	
 	LCD_ClearScreen();
 	LCD_Cursor(1);
 	LCD_WriteData(count + '0');
-	
 }
 
 int main(void)
 {
-	state = start;
 	DDRA = 0x00; PORTA = 0xFF;
-	DDRC = 0xFF; PORTC = 0x00;
+	DDRB = 0xFF; PORTB = 0x00;
 	DDRD = 0xFF; PORTD = 0x00;
+	state = Start;
 	TimerSet(100);
 	TimerOn();
-	LCD_init ();
-
-	while (1)
+	LCD_init();
+	while(1)
 	{
-		Toggle();
+		
+		tick();
 		while (!TimerFlag){}
-		TimerFlag = 0;
+		TimerFlag = 0x00;
 	}
 }
